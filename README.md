@@ -673,6 +673,49 @@ The analysis focused on questions such as:
 
 The final insights were validated against the underlying dataset before being treated as market findings.
 
+# 📊 Key Market Visualizations
+
+The following visualizations summarize some of the most important findings from the Egyptian real estate market analysis.
+
+## 🏢 Top 10 Most Common Property Types
+
+This visualization shows the most frequently listed property types in the dataset.
+
+![Top 10 Most Common Property Types](./images/property_types.png)
+
+---
+
+## 🏙️ Real Estate Listings by City
+
+This visualization shows the distribution of real estate listings across different cities.
+
+![Real Estate Listings by City](./images/listings_by_city.png)
+
+---
+
+## 💰 Median Property Price by City
+
+This visualization compares the median property price across cities, highlighting differences in local market pricing.
+
+![Median Property Price by City](./images/median_price_by_city.png)
+
+---
+
+## 📐 Median Price Per Square Meter by City
+
+This visualization compares the median price per square meter across cities and provides a more standardized view of property pricing.
+
+![Median Price Per Square Meter by City](./images/median_price_per_sqm.png)
+
+---
+
+## 🏠 Sale vs. Rent Market Share
+
+This visualization shows the distribution of Sale and Rent listings within the validated dataset.
+
+![Sale vs. Rent Market Share](./images/sale_vs_rent.png)
+---
+
 ---
 
 # 🔀 Sale vs. Rent Separation
@@ -1825,3 +1868,4 @@ Good Documentation
 ```
 
 **Real Estate Market Analyzer** combines these components into one complete workflow for understanding and modeling the Egyptian real estate market.
+
