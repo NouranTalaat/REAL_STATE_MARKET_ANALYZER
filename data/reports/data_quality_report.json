@@ -1,0 +1,79 @@
+{
+    "dataset": {
+        "raw_rows": 39713,
+        "raw_columns": 53
+    },
+    "required_columns": {
+        "missing": [],
+        "status": "PASS"
+    },
+    "duplicates": {
+        "duplicate_rows": 0,
+        "duplicate_listing_ids": 0
+    },
+    "missing_values": {
+        "listing_id": 1,
+        "internal_id": 1,
+        "detail_url": 1,
+        "property_type": 1,
+        "offering_type": 1,
+        "completion_status": 19950,
+        "title": 1,
+        "price_egp": 1,
+        "price_period": 1,
+        "location_full": 1,
+        "city": 1,
+        "town": 1,
+        "district": 347,
+        "subdistrict": 6759,
+        "lat": 1,
+        "lon": 1,
+        "bedrooms": 35,
+        "bathrooms": 30,
+        "area_value": 1,
+        "furnished": 8385,
+        "listing_level": 1,
+        "listed_date": 1,
+        "video_url": 39511,
+        "reference": 1,
+        "rera": 39713,
+        "description": 1,
+        "amenities": 33,
+        "payment_method": 19774,
+        "agent_id": 1,
+        "agent_name": 8,
+        "agent_email": 1,
+        "agent_languages": 30541,
+        "broker_id": 1,
+        "broker_name": 1,
+        "broker_email": 203,
+        "broker_phone": 203,
+        "contact_phone": 1,
+        "contact_whatsapp": 1,
+        "contact_email": 1
+    },
+    "numeric_validation": {
+        "invalid_price": 0,
+        "invalid_area": 0,
+        "invalid_latitude": 0,
+        "invalid_longitude": 0,
+        "invalid_images_count": 0
+    },
+    "sensitive_columns_detected": [
+        "agent_name",
+        "agent_email",
+        "broker_name",
+        "broker_email",
+        "broker_phone",
+        "contact_phone",
+        "contact_whatsapp",
+        "contact_email"
+    ],
+    "processed_dataset": {
+        "rows": 39713,
+        "columns": 50
+    },
+    "processed_duplicates": {
+        "duplicate_rows": 0
+    }
+}
