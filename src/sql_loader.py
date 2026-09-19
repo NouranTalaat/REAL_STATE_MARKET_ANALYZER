@@ -1,19 +1,15 @@
 """
 Real Estate Market Intelligence Platform
-Phase 3 - SQL Data Layer
-Step 3 - CSV -> SQL Server Staging Loader
+SQL Server Staging Loader
 """
 
 from pathlib import Path
-import urllib.parse
 
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
+from src.database import engine
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -24,48 +20,19 @@ CSV_PATH = (
     / "propertyfinder_clean.csv"
 )
 
-SQL_SERVER = "localhost"
-DATABASE = "REAL_ESTATE_MARKET_INTELLIGENCE"
-
 SCHEMA = "staging"
 TABLE = "property_listings_raw"
 
 CHUNK_SIZE = 5_000
 
 
-# ============================================================
-# DATABASE CONNECTION
-# ============================================================
-
-def create_database_engine():
-    """Create a SQLAlchemy engine for SQL Server."""
-
-    connection_string = (
-        "DRIVER={ODBC Driver 17 for SQL Server};"
-        f"SERVER={SQL_SERVER};"
-        f"DATABASE={DATABASE};"
-        "Trusted_Connection=yes;"
-        "TrustServerCertificate=yes;"
-    )
-
-    connection_url = urllib.parse.quote_plus(connection_string)
-
-    engine = create_engine(
-        f"mssql+pyodbc:///?odbc_connect={connection_url}",
-        fast_executemany=True,
-    )
-
-    return engine
-
-
-# ============================================================
-# DATA PREPARATION
-# ============================================================
-
 def prepare_chunk(df: pd.DataFrame) -> pd.DataFrame:
-    """Prepare CSV data for SQL Server."""
+    """
+    Prepare CSV data for SQL Server.
+    """
 
-    # Integer columns
+    df = df.copy()
+
     integer_columns = [
         "internal_id",
         "bedrooms",
@@ -77,14 +44,6 @@ def prepare_chunk(df: pd.DataFrame) -> pd.DataFrame:
         "listing_age_days",
     ]
 
-    for column in integer_columns:
-        if column in df.columns:
-            df[column] = pd.to_numeric(
-                df[column],
-                errors="coerce",
-            ).astype("Int64")
-
-    # Numeric / decimal columns
     numeric_columns = [
         "price_egp",
         "area_value",
@@ -93,14 +52,6 @@ def prepare_chunk(df: pd.DataFrame) -> pd.DataFrame:
         "price_per_sqm",
     ]
 
-    for column in numeric_columns:
-        if column in df.columns:
-            df[column] = pd.to_numeric(
-                df[column],
-                errors="coerce",
-            )
-
-    # Boolean columns
     boolean_columns = [
         "is_premium",
         "is_verified",
@@ -114,39 +65,51 @@ def prepare_chunk(df: pd.DataFrame) -> pd.DataFrame:
         "has_video",
     ]
 
-    for column in boolean_columns:
-        if column in df.columns:
-            df[column] = df[column].astype("boolean")
-
-    # Datetime columns
     datetime_columns = [
         "listed_date",
         "scraped_at",
     ]
+
+    for column in integer_columns:
+        if column in df.columns:
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce",
+            ).astype("Int64")
+
+    for column in numeric_columns:
+        if column in df.columns:
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce",
+            )
+
+    for column in boolean_columns:
+        if column in df.columns:
+            df[column] = df[column].astype("boolean")
 
     for column in datetime_columns:
         if column in df.columns:
             df[column] = pd.to_datetime(
                 df[column],
                 errors="coerce",
-            )
+                utc=True,
+            ).dt.tz_localize(None)
 
-    # Convert pandas NA/NaN to Python None
-    df = df.astype(object).where(pd.notna(df), None)
+    return df.astype(object).where(
+        pd.notna(df),
+        None,
+    )
 
-    return df
-
-
-# ============================================================
-# LOAD DATA
-# ============================================================
 
 def load_data():
-    """Load processed CSV into SQL Server staging table."""
+    """
+    Load processed CSV into SQL Server staging.
+    """
 
     if not CSV_PATH.exists():
         raise FileNotFoundError(
-            f"CSV file not found:\n{CSV_PATH}"
+            f"CSV file not found: {CSV_PATH}"
         )
 
     print("=" * 70)
@@ -154,36 +117,17 @@ def load_data():
     print("SQL SERVER STAGING LOADER")
     print("=" * 70)
 
-    print("\nSource file:")
-    print(CSV_PATH)
-
-    print("\nTarget:")
-    print(
-        f"{DATABASE}.{SCHEMA}.{TABLE}"
-    )
-
-    print(
-        f"\nChunk size: {CHUNK_SIZE:,}"
-    )
-
-    engine = create_database_engine()
+    print(f"\nSource: {CSV_PATH}")
+    print(f"Target: {SCHEMA}.{TABLE}")
 
     total_rows = 0
     chunk_number = 0
 
     try:
-        # ----------------------------------------------------
-        # Test database connection
-        # ----------------------------------------------------
-
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
 
-        print("\n✓ SQL Server connection successful")
-
-        # ----------------------------------------------------
-        # Read CSV in chunks
-        # ----------------------------------------------------
+        print("\nSQL Server connection successful.")
 
         chunks = pd.read_csv(
             CSV_PATH,
@@ -191,43 +135,39 @@ def load_data():
             low_memory=False,
         )
 
-        for chunk in chunks:
+        with engine.begin() as connection:
 
-            chunk_number += 1
-
-            print(
-                f"\nProcessing chunk #{chunk_number}..."
+            connection.execute(
+                text(
+                    f"""
+                    TRUNCATE TABLE {SCHEMA}.{TABLE};
+                    """
+                )
             )
 
-            # Prepare chunk
-            chunk = prepare_chunk(chunk)
+            for chunk in chunks:
 
-            # Load into SQL Server
-            chunk.to_sql(
-                name=TABLE,
-                con=engine,
-                schema=SCHEMA,
-                if_exists="append",
-                index=False,
-                chunksize=CHUNK_SIZE,
-                method=None,
-            )
+                chunk_number += 1
 
-            rows_loaded = len(chunk)
+                chunk = prepare_chunk(chunk)
 
-            total_rows += rows_loaded
+                chunk.to_sql(
+                    name=TABLE,
+                    con=connection,
+                    schema=SCHEMA,
+                    if_exists="append",
+                    index=False,
+                    chunksize=CHUNK_SIZE,
+                    method=None,
+                )
 
-            print(
-                f"✓ Loaded {rows_loaded:,} rows"
-            )
+                rows_loaded = len(chunk)
+                total_rows += rows_loaded
 
-            print(
-                f"✓ Total loaded: {total_rows:,}"
-            )
-
-        # ----------------------------------------------------
-        # Final verification
-        # ----------------------------------------------------
+                print(
+                    f"Chunk #{chunk_number}: "
+                    f"{rows_loaded:,} rows"
+                )
 
         with engine.connect() as connection:
 
@@ -235,46 +175,41 @@ def load_data():
                 text(
                     f"""
                     SELECT COUNT(*) AS row_count
-                    FROM {SCHEMA}.{TABLE}
+                    FROM {SCHEMA}.{TABLE};
                     """
                 )
             )
 
-            sql_row_count = result.scalar()
+            sql_row_count = int(result.scalar())
 
         print("\n" + "=" * 70)
-        print("LOAD COMPLETED")
+        print("STAGING LOAD COMPLETED")
         print("=" * 70)
 
         print(
-            f"Rows processed by Python : {total_rows:,}"
+            f"Rows processed: {total_rows:,}"
         )
 
         print(
-            f"Rows stored in SQL Server: {sql_row_count:,}"
+            f"Rows in SQL Server: {sql_row_count:,}"
         )
 
-        if total_rows == sql_row_count:
-            print(
-                "\n✓ Row count validation PASSED"
+        if total_rows != sql_row_count:
+            raise RuntimeError(
+                "Staging row count validation failed."
             )
-        else:
-            print(
-                "\n⚠ Row count mismatch detected"
-            )
+
+        print("\nRow count validation: PASS")
+
+        return {
+            "processed_rows": total_rows,
+            "sql_rows": sql_row_count,
+            "status": "SUCCESS",
+        }
 
     finally:
-
         engine.dispose()
 
-        print(
-            "\nDatabase connection closed."
-        )
-
-
-# ============================================================
-# ENTRY POINT
-# ============================================================
 
 if __name__ == "__main__":
     load_data()

@@ -16,6 +16,7 @@ REQUIRED_COLUMNS = {
     "listed_date",
 }
 
+
 NUMERIC_COLUMNS = [
     "price_egp",
     "lat",
@@ -24,6 +25,7 @@ NUMERIC_COLUMNS = [
     "images_count",
     "rera",
 ]
+
 
 BOOLEAN_COLUMNS = [
     "is_premium",
@@ -35,6 +37,7 @@ BOOLEAN_COLUMNS = [
     "has_view_360",
     "agent_is_super",
 ]
+
 
 SENSITIVE_COLUMNS = [
     "agent_name",
@@ -48,24 +51,80 @@ SENSITIVE_COLUMNS = [
 ]
 
 
-def validate_required_columns(dataframe: pd.DataFrame) -> list[str]:
-    """Return required columns that are missing."""
-    return sorted(REQUIRED_COLUMNS - set(dataframe.columns))
+def validate_required_columns(
+    dataframe: pd.DataFrame,
+) -> list[str]:
+    return sorted(
+        REQUIRED_COLUMNS - set(dataframe.columns)
+    )
 
 
-def validate_numeric_ranges(dataframe: pd.DataFrame) -> dict[str, int]:
-    """Count invalid values in important numeric fields."""
+def validate_listing_ids(
+    dataframe: pd.DataFrame,
+) -> dict[str, int | bool | str]:
+    """
+    Validate listing_id as the business key of the dataset.
+    """
+
+    if "listing_id" not in dataframe.columns:
+        return {
+            "missing_column": True,
+            "null_listing_ids": int(len(dataframe)),
+            "duplicate_listing_ids": 0,
+            "unique_listing_ids": 0,
+            "status": "FAIL",
+        }
+
+    null_listing_ids = int(
+        dataframe["listing_id"].isna().sum()
+    )
+
+    non_null_ids = dataframe["listing_id"].dropna()
+
+    duplicate_listing_ids = int(
+        non_null_ids.duplicated(keep=False).sum()
+    )
+
+    unique_listing_ids = int(
+        non_null_ids.nunique()
+    )
+
+    status = (
+        "PASS"
+        if null_listing_ids == 0
+        and duplicate_listing_ids == 0
+        else "PASS_WITH_REJECTIONS"
+    )
+
+    return {
+        "missing_column": False,
+        "null_listing_ids": null_listing_ids,
+        "duplicate_listing_ids": duplicate_listing_ids,
+        "unique_listing_ids": unique_listing_ids,
+        "status": status,
+    }
+
+
+def validate_numeric_ranges(
+    dataframe: pd.DataFrame,
+) -> dict[str, int]:
 
     checks = {}
 
     if "price_egp" in dataframe.columns:
         checks["invalid_price"] = int(
-            (dataframe["price_egp"].notna() & (dataframe["price_egp"] <= 0)).sum()
+            (
+                dataframe["price_egp"].notna()
+                & (dataframe["price_egp"] <= 0)
+            ).sum()
         )
 
     if "area_value" in dataframe.columns:
         checks["invalid_area"] = int(
-            (dataframe["area_value"].notna() & (dataframe["area_value"] <= 0)).sum()
+            (
+                dataframe["area_value"].notna()
+                & (dataframe["area_value"] <= 0)
+            ).sum()
         )
 
     if "lat" in dataframe.columns:
@@ -95,23 +154,29 @@ def validate_numeric_ranges(dataframe: pd.DataFrame) -> dict[str, int]:
     return checks
 
 
-def validate_duplicates(dataframe: pd.DataFrame) -> dict[str, int]:
-    """Return duplicate statistics."""
+def validate_duplicates(
+    dataframe: pd.DataFrame,
+) -> dict[str, int]:
 
     result = {
-        "duplicate_rows": int(dataframe.duplicated().sum()),
+        "duplicate_rows": int(
+            dataframe.duplicated().sum()
+        )
     }
 
     if "listing_id" in dataframe.columns:
+        non_null_ids = dataframe["listing_id"].dropna()
+
         result["duplicate_listing_ids"] = int(
-            dataframe["listing_id"].duplicated(keep=False).sum()
+            non_null_ids.duplicated(keep=False).sum()
         )
 
     return result
 
 
-def validate_missing_values(dataframe: pd.DataFrame) -> dict[str, int]:
-    """Return missing-value counts for all columns."""
+def validate_missing_values(
+    dataframe: pd.DataFrame,
+) -> dict[str, int]:
 
     missing = dataframe.isna().sum()
 
@@ -122,8 +187,9 @@ def validate_missing_values(dataframe: pd.DataFrame) -> dict[str, int]:
     }
 
 
-def validate_sensitive_columns(dataframe: pd.DataFrame) -> list[str]:
-    """Identify sensitive columns that should not enter the processed dataset."""
+def validate_sensitive_columns(
+    dataframe: pd.DataFrame,
+) -> list[str]:
 
     return [
         column
@@ -136,33 +202,58 @@ def build_quality_report(
     raw_dataframe: pd.DataFrame,
     processed_dataframe: pd.DataFrame | None = None,
 ) -> dict[str, Any]:
-    """Build a structured data-quality report."""
 
-    required_columns_missing = validate_required_columns(raw_dataframe)
+    required_columns_missing = validate_required_columns(
+        raw_dataframe
+    )
 
-    report: dict[str, Any] = {
+    listing_id_validation = validate_listing_ids(
+        raw_dataframe
+    )
+
+    report = {
         "dataset": {
             "raw_rows": int(len(raw_dataframe)),
-            "raw_columns": int(len(raw_dataframe.columns)),
+            "raw_columns": int(
+                len(raw_dataframe.columns)
+            ),
         },
         "required_columns": {
             "missing": required_columns_missing,
-            "status": "PASS" if not required_columns_missing else "FAIL",
+            "status": (
+                "PASS"
+                if not required_columns_missing
+                else "FAIL"
+            ),
         },
-        "duplicates": validate_duplicates(raw_dataframe),
-        "missing_values": validate_missing_values(raw_dataframe),
-        "numeric_validation": validate_numeric_ranges(raw_dataframe),
-        "sensitive_columns_detected": validate_sensitive_columns(raw_dataframe),
+        "listing_id_validation": listing_id_validation,
+        "duplicates": validate_duplicates(
+            raw_dataframe
+        ),
+        "missing_values": validate_missing_values(
+            raw_dataframe
+        ),
+        "numeric_validation": validate_numeric_ranges(
+            raw_dataframe
+        ),
+        "sensitive_columns_detected":
+            validate_sensitive_columns(
+                raw_dataframe
+            ),
     }
 
     if processed_dataframe is not None:
         report["processed_dataset"] = {
             "rows": int(len(processed_dataframe)),
-            "columns": int(len(processed_dataframe.columns)),
+            "columns": int(
+                len(processed_dataframe.columns)
+            ),
         }
 
         report["processed_duplicates"] = {
-            "duplicate_rows": int(processed_dataframe.duplicated().sum()),
+            "duplicate_rows": int(
+                processed_dataframe.duplicated().sum()
+            )
         }
 
     return report

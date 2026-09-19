@@ -10,16 +10,10 @@ logger = get_logger(__name__)
 
 
 class DataIngestionError(Exception):
-    """
-    Raised when data ingestion fails.
-    """
+    """Raised when data ingestion fails."""
 
 
 def validate_raw_file(file_path: Path) -> None:
-    """
-    Validate that the raw dataset exists and is a CSV file.
-    """
-
     logger.info("Validating raw data file: %s", file_path)
 
     if not file_path.exists():
@@ -43,17 +37,15 @@ def validate_raw_file(file_path: Path) -> None:
 def load_propertyfinder_data(
     file_path: Path = PROPERTYFINDER_FILE,
 ) -> pd.DataFrame:
-    """
-    Load the PropertyFinder dataset into a pandas DataFrame.
-    """
-
     validate_raw_file(file_path)
 
     logger.info("Loading PropertyFinder dataset...")
 
     try:
-        dataframe = pd.read_csv(file_path)
-
+        dataframe = pd.read_csv(
+            file_path,
+            low_memory=False,
+        )
     except Exception as exc:
         raise DataIngestionError(
             f"Failed to read dataset: {exc}"
@@ -79,10 +71,6 @@ def load_propertyfinder_data(
 
 
 def get_dataset_summary(dataframe: pd.DataFrame) -> dict:
-    """
-    Return a basic summary of the ingested dataset.
-    """
-
     return {
         "rows": dataframe.shape[0],
         "columns": dataframe.shape[1],
@@ -98,7 +86,6 @@ if __name__ == "__main__":
     setup_logging()
 
     df = load_propertyfinder_data()
-
     summary = get_dataset_summary(df)
 
     logger.info("Dataset summary:")
