@@ -12,6 +12,10 @@ def load_view(view_name: str) -> pd.DataFrame:
     return pd.read_sql(query, engine)
 
 
+def load_market_overview() -> pd.DataFrame:
+    return load_view("analytics.vw_market_overview")
+
+
 def load_market_summary() -> pd.DataFrame:
     return load_view("analytics.vw_market_summary")
 
