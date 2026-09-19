@@ -6,20 +6,19 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 
-from analytics_service import (
-    get_market_summary,
-    get_robust_metrics,
-    get_location_intelligence,
-    get_opportunity_signals,
-    get_data_quality_status,
-)
-
 
 # =========================================================
 # PROJECT PATHS
 # =========================================================
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+DATA_FILE = (
+    PROJECT_ROOT
+    / "data"
+    / "raw"
+    / "propertyfinder.csv"
+)
 
 SALE_MODEL_FILE = (
     PROJECT_ROOT
@@ -39,13 +38,28 @@ RENT_MODEL_FILE = (
 # =========================================================
 
 app = FastAPI(
-    title="Real Estate Market Intelligence API",
-    description=(
-        "API for Egyptian real estate market intelligence, "
-        "analytics, and price prediction."
-    ),
-    version="2.0.0",
+    title="Real Estate Market Analyzer API",
+    description="API for analyzing the Egyptian real estate market",
+    version="1.0.0",
 )
+
+
+# =========================================================
+# LOAD DATA
+# =========================================================
+
+def load_data():
+    """Load the PropertyFinder dataset."""
+
+    if not DATA_FILE.exists():
+        raise FileNotFoundError(
+            f"Dataset not found: {DATA_FILE}"
+        )
+
+    return pd.read_csv(
+        DATA_FILE,
+        low_memory=False,
+    )
 
 
 # =========================================================
@@ -53,6 +67,7 @@ app = FastAPI(
 # =========================================================
 
 def load_sale_model():
+
     if not SALE_MODEL_FILE.exists():
         raise FileNotFoundError(
             f"Sale model not found: {SALE_MODEL_FILE}"
@@ -62,6 +77,7 @@ def load_sale_model():
 
 
 def load_rent_model():
+
     if not RENT_MODEL_FILE.exists():
         raise FileNotFoundError(
             f"Rent model not found: {RENT_MODEL_FILE}"
@@ -196,125 +212,172 @@ def prepare_rent_input(data: dict) -> pd.DataFrame:
 def home():
 
     return {
-        "message": "Real Estate Market Intelligence API is running",
-        "version": "2.0.0",
-        "status": "healthy",
+        "message": "Real Estate Market Analyzer API is running"
     }
 
 
 # =========================================================
-# MARKET SUMMARY
+# GET PROPERTIES
 # =========================================================
 
-@app.get("/analytics/market-summary")
-def market_summary():
+@app.get("/properties")
+def get_properties(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+):
 
-    try:
-        df = get_market_summary()
+    df = load_data()
 
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
+    properties = df.iloc[
+        skip:skip + limit
+    ]
 
-    except Exception as e:
+    properties_json = properties.to_json(
+        orient="records",
+        date_format="iso",
+    )
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load market summary: {str(e)}",
+    return {
+        "total": len(df),
+        "skip": skip,
+        "limit": limit,
+        "properties": json.loads(properties_json),
+    }
+
+
+# =========================================================
+# MARKET OVERVIEW
+# =========================================================
+
+@app.get("/market/overview")
+def market_overview():
+
+    df = load_data()
+
+    sale_df = df[
+        df["category"] == "buy"
+    ]
+
+    rent_df = df[
+        df["category"] == "rent"
+    ]
+
+    return {
+        "total_listings": len(df),
+        "sale_listings": len(sale_df),
+        "rent_listings": len(rent_df),
+        "median_sale_price": sale_df["price_egp"].median(),
+        "median_rent": rent_df["price_egp"].median(),
+    }
+
+
+# =========================================================
+# PROPERTY TYPES
+# =========================================================
+
+@app.get("/market/property-types")
+def property_types():
+
+    df = load_data()
+
+    result = (
+        df["property_type"]
+        .value_counts()
+        .reset_index()
+    )
+
+    result.columns = [
+        "property_type",
+        "listings",
+    ]
+
+    return {
+        "property_types": result.to_dict(
+            orient="records"
         )
+    }
 
 
 # =========================================================
-# ROBUST MARKET METRICS
+# LOCATIONS
 # =========================================================
 
-@app.get("/analytics/robust-metrics")
-def robust_metrics():
+@app.get("/market/locations")
+def market_locations(
+    city: str | None = None,
+):
 
-    try:
-        df = get_robust_metrics()
+    df = load_data()
 
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
+    if city:
 
-    except Exception as e:
+        df = df[
+            df["city"]
+            .astype(str)
+            .str.lower()
+            == city.lower()
+        ]
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load robust metrics: {str(e)}",
-        )
+        if df.empty:
 
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"No listings found "
+                    f"for city: {city}"
+                ),
+            )
 
-# =========================================================
-# LOCATION INTELLIGENCE
-# =========================================================
+    result = (
+        df["city"]
+        .value_counts()
+        .reset_index()
+    )
 
-@app.get("/analytics/location-intelligence")
-def location_intelligence():
+    result.columns = [
+        "city",
+        "listings",
+    ]
 
-    try:
-        df = get_location_intelligence()
-
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load location intelligence: {str(e)}",
-        )
-
-
-# =========================================================
-# OPPORTUNITY SIGNALS
-# =========================================================
-
-@app.get("/analytics/opportunity-signals")
-def opportunity_signals():
-
-    try:
-        df = get_opportunity_signals()
-
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
-
-    except Exception as e:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load opportunity signals: {str(e)}",
-        )
+    return {
+        "city_filter": city,
+        "locations": result.to_dict(
+            orient="records"
+        ),
+    }
 
 
 # =========================================================
-# DATA QUALITY
+# PRICE ANALYSIS
 # =========================================================
 
-@app.get("/analytics/data-quality")
-def data_quality():
+@app.get("/market/prices")
+def price_analysis():
 
-    try:
-        df = get_data_quality_status()
+    df = load_data()
 
-        return {
-            "count": len(df),
-            "data": df.to_dict(orient="records"),
-        }
+    sale_df = df[
+        df["category"] == "buy"
+    ]
 
-    except Exception as e:
+    rent_df = df[
+        df["category"] == "rent"
+    ]
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to load data quality status: {str(e)}",
-        )
+    return {
+        "sale": {
+            "min": sale_df["price_egp"].min(),
+            "max": sale_df["price_egp"].max(),
+            "mean": sale_df["price_egp"].mean(),
+            "median": sale_df["price_egp"].median(),
+        },
+        "rent": {
+            "min": rent_df["price_egp"].min(),
+            "max": rent_df["price_egp"].max(),
+            "mean": rent_df["price_egp"].mean(),
+            "median": rent_df["price_egp"].median(),
+        },
+    }
 
 
 # =========================================================
