@@ -1,4 +1,4 @@
-from analytics_service import (
+from src.analytics_service import (
     get_market_summary,
     get_robust_metrics,
     get_location_intelligence,

@@ -1,4 +1,4 @@
-from sql_analytics import (
+from src.sql_analytics import (
     load_market_summary,
     load_robust_metrics,
     load_location_intelligence,

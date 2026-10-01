@@ -1,21 +1,23 @@
+from __future__ import annotations
+
+import os
+
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
 
-SERVER = "DESKTOP-C0V38AA"
-DATABASE = "REAL_ESTATE_MARKET_INTELLIGENCE"
-DRIVER = "ODBC Driver 17 for SQL Server"
+load_dotenv()
 
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-CONNECTION_STRING = (
-    f"mssql+pyodbc://@{SERVER}/{DATABASE}"
-    f"?driver={DRIVER.replace(' ', '+')}"
-    "&trusted_connection=yes"
-    "&TrustServerCertificate=yes"
-)
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not configured."
+    )
 
 
 engine = create_engine(
-    CONNECTION_STRING,
+    DATABASE_URL,
     pool_pre_ping=True,
 )
 

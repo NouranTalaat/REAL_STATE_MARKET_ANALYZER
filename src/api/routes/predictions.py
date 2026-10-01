@@ -1,6 +1,18 @@
-from fastapi import APIRouter, HTTPException
+from __future__ import annotations
 
+from fastapi import APIRouter, Request
+
+from src.api.schemas.common import APIResponse
+from src.api.schemas.prediction import (
+    PredictionRequest,
+    PredictionResult,
+)
+from src.api.services.prediction_service import PredictionService
+from src.core.config import get_settings
 from src.prediction_service import get_model_status
+
+
+settings = get_settings()
 
 
 router = APIRouter(
@@ -9,13 +21,46 @@ router = APIRouter(
 )
 
 
-@router.get("/status")
-def prediction_status():
-    try:
-        return get_model_status()
+prediction_service = PredictionService()
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to check prediction models: {str(e)}",
-        )
+
+@router.get(
+    "/status",
+    response_model=APIResponse[dict],
+)
+def prediction_status(
+    request: Request,
+):
+    result = get_model_status()
+
+    return APIResponse(
+        success=True,
+        data=result,
+        meta={
+            "request_id": request.state.request_id,
+            "version": settings.api_version,
+        },
+    )
+
+
+@router.post(
+    "/valuate",
+    response_model=APIResponse[PredictionResult],
+)
+def valuate_property(
+    request: PredictionRequest,
+    http_request: Request,
+):
+    result = prediction_service.valuate(
+        property_data=request.property_data,
+        market_type=request.market_type,
+    )
+
+    return APIResponse(
+        success=True,
+        data=result,
+        meta={
+            "request_id": http_request.state.request_id,
+            "version": settings.api_version,
+        },
+    )
